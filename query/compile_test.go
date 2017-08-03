@@ -573,14 +573,15 @@ func TestSelect(t *testing.T) {
 	now := mustParseTime("2000-01-01T00:00:00Z")
 
 	for _, tt := range []struct {
-		name   string
-		s      string
-		expr   string
-		typ    influxql.DataType
-		itrs   []influxql.Iterator
-		points [][]influxql.Point
-		err    string
-		skip   bool
+		name     string
+		s        string
+		expr     string
+		typ      influxql.DataType
+		createFn func(opt influxql.IteratorOptions) []influxql.Iterator
+		itrs     []influxql.Iterator
+		points   [][]influxql.Point
+		err      string
+		skip     bool
 	}{
 		{
 			name: "Min",
@@ -1456,6 +1457,1659 @@ func TestSelect(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Fill_Null_Float",
+			s:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(null)`,
+			expr: `value`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 20 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+			},
+			skip: true,
+		},
+		{
+			name: "Fill_Number_Float",
+			s:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(1)`,
+			expr: `value`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 20 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 40 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 50 * Second, Value: 1}},
+			},
+			skip: true,
+		},
+		{
+			name: "Fill_Previous_Float",
+			s:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(previous)`,
+			expr: `value`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 20 * Second, Value: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 40 * Second, Value: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 50 * Second, Value: 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "Fill_Linear_Float_One",
+			s:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			expr: `value`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 12 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 32 * Second, Value: 4},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 20 * Second, Value: 3}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+			},
+			skip: true,
+		},
+		{
+			name: "Fill_Linear_Float_Many",
+			s:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			expr: `value`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 12 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 62 * Second, Value: 7},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 20 * Second, Value: 3}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 4}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 40 * Second, Value: 5}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 50 * Second, Value: 6}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 60 * Second, Value: 7, Aggregated: 1}},
+			},
+			skip: true,
+		},
+		{
+			name: "Fill_Linear_Float_MultipleSeries",
+			s:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			expr: `value`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 12 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 32 * Second, Value: 4},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 20 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 10 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 20 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 40 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 50 * Second, Nil: true}},
+			},
+			skip: true,
+		},
+		{
+			name: "Fill_Linear_Integer_One",
+			s:    `SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			expr: `value`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 12 * Second, Value: 1},
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 32 * Second, Value: 4},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 1, Aggregated: 1}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 20 * Second, Value: 2}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+			},
+			skip: true,
+		},
+		{
+			name: "Fill_Linear_Integer_Many",
+			s:    `SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:20Z' GROUP BY host, time(10s) fill(linear)`,
+			expr: `value`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 12 * Second, Value: 1},
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 72 * Second, Value: 10},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 1, Aggregated: 1}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 20 * Second, Value: 2}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 4}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 40 * Second, Value: 5}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 50 * Second, Value: 7}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 60 * Second, Value: 8}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 70 * Second, Value: 10, Aggregated: 1}},
+			},
+			skip: true,
+		},
+		{
+			name: "Fill_Linear_Integer_MultipleSeries",
+			s:    `SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			expr: `value`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 12 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 32 * Second, Value: 4},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 20 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 10 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 20 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 40 * Second, Nil: true}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 50 * Second, Nil: true}},
+			},
+			skip: true,
+		},
+		{
+			name: "Stddev_Float",
+			s:    `SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			expr: `value`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 0.7071067811865476}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 0.7071067811865476}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 50 * Second, Value: 1.5811388300841898}},
+			},
+			skip: true,
+		},
+		{
+			name: "Stddev_Integer",
+			s:    `SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			expr: `value`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 0.7071067811865476}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 0.7071067811865476}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 50 * Second, Value: 1.5811388300841898}},
+			},
+			skip: true,
+		},
+		{
+			name: "Spread_Float",
+			s:    `SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			expr: `value`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 0}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 0}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 50 * Second, Value: 4}},
+			},
+			skip: true,
+		},
+		{
+			name: "Spread_Integer",
+			s:    `SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			expr: `value`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 1}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 1}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 0}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 0}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 50 * Second, Value: 4}},
+			},
+			skip: true,
+		},
+		{
+			name: "Percentile_Float",
+			s:    `SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			expr: `value`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 3}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 50 * Second, Value: 9}},
+			},
+			skip: true,
+		},
+		{
+			name: "Percentile_Integer",
+			s:    `SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			expr: `value`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 3}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 50 * Second, Value: 9}},
+			},
+			skip: true,
+		},
+		{
+			name: "Sample_Float",
+			s:    `SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			expr: `value`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 5 * Second, Value: 10},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=B"), Time: 10 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=B"), Time: 15 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 5 * Second, Value: 10}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 10 * Second, Value: 19}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 15 * Second, Value: 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "Sample_Integer",
+			s:    `SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			expr: `value`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 5 * Second, Value: 10},
+				}},
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=B"), Time: 10 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=B"), Time: 15 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 5 * Second, Value: 10}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 10 * Second, Value: 19}},
+				{&influxql.IntegerPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 15 * Second, Value: 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "Sample_String",
+			s:    `SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			expr: `value`,
+			typ:  influxql.String,
+			itrs: []influxql.Iterator{
+				&mock.StringIterator{Points: []influxql.StringPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: "a"},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 5 * Second, Value: "b"},
+				}},
+				&mock.StringIterator{Points: []influxql.StringPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=B"), Time: 10 * Second, Value: "c"},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=B"), Time: 15 * Second, Value: "d"},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.StringPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: "a"}},
+				{&influxql.StringPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 5 * Second, Value: "b"}},
+				{&influxql.StringPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 10 * Second, Value: "c"}},
+				{&influxql.StringPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 15 * Second, Value: "d"}},
+			},
+			skip: true,
+		},
+		{
+			name: "Sample_Boolean",
+			s:    `SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			expr: `value`,
+			typ:  influxql.Boolean,
+			itrs: []influxql.Iterator{
+				&mock.BooleanIterator{Points: []influxql.BooleanPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: true},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 5 * Second, Value: false},
+				}},
+				&mock.BooleanIterator{Points: []influxql.BooleanPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=B"), Time: 10 * Second, Value: false},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=B"), Time: 15 * Second, Value: true},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.BooleanPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: true}},
+				{&influxql.BooleanPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 5 * Second, Value: false}},
+				{&influxql.BooleanPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 10 * Second, Value: false}},
+				{&influxql.BooleanPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 15 * Second, Value: true}},
+			},
+			skip: true,
+		},
+		{
+			name: "Raw",
+			s:    `SELECT v1, v2 FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Time: 0, Aux: []interface{}{float64(1), nil}},
+					{Time: 1, Aux: []interface{}{nil, float64(2)}},
+					{Time: 5, Aux: []interface{}{float64(3), float64(4)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{
+					&influxql.FloatPoint{Time: 0, Value: 1},
+					&influxql.FloatPoint{Time: 0, Nil: true},
+				},
+				{
+					&influxql.FloatPoint{Time: 1, Nil: true},
+					&influxql.FloatPoint{Time: 1, Value: 2},
+				},
+				{
+					&influxql.FloatPoint{Time: 5, Value: 3},
+					&influxql.FloatPoint{Time: 5, Value: 4},
+				},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_AddNumberRHS",
+			s:    `SELECT value + 2.0 FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_AddIntegerRHS",
+			s:    `SELECT value + 2 FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_AddNumberLHS",
+			s:    `SELECT 2.0 + value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_AddIntegerLHS",
+			s:    `SELECT 2 + value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_AddTwoVariables",
+			s:    `SELECT value + value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			name: "BinaryExpr_Float_MultiplyNumberRHS",
+			s:    `SELECT value * 2.0 FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_MultiplyIntegerRHS",
+			s:    `SELECT value * 2 FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_MultiplyNumberLHS",
+			s:    `SELECT 2.0 * value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_MultiplyIntegerLHS",
+			s:    `SELECT 2 * value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_MultiplyTwoVariables",
+			s:    `SELECT value * value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 400}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 100}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 361}},
+			},
+		},
+		{
+			name: "BinaryExpr_Float_SubtractNumberRHS",
+			s:    `SELECT value - 2.0 FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_SubtractIntegerRHS",
+			s:    `SELECT value - 2 FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_SubtractNumberLHS",
+			s:    `SELECT 2.0 - value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: -17}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_SubtractIntegerLHS",
+			s:    `SELECT 2 - value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: -17}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_SubtractTwoVariables",
+			s:    `SELECT value - value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
+		{
+			name: "BinaryExpr_Float_DivideNumberRHS",
+			s:    `SELECT value / 2.0 FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_DivideIntegerRHS",
+			s:    `SELECT value / 2 FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_DivideNumberLHS",
+			s:    `SELECT 38.0 / value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_DivideIntegerLHS",
+			s:    `SELECT 38 / value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Float_DivideTwoVariables",
+			s:    `SELECT value / value FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 1}},
+			},
+		},
+		{
+			name: "BinaryExpr_Integer_AddNumberRHS",
+			s:    `SELECT value + 2.0 FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_AddIntegerRHS",
+			s:    `SELECT value + 2 FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_AddNumberLHS",
+			s:    `SELECT 2.0 + value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_AddIntegerLHS",
+			s:    `SELECT 2 + value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_AddTwoVariables",
+			s:    `SELECT value + value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			name: "BinaryExpr_Integer_MultiplyNumberRHS",
+			s:    `SELECT value * 2.0 FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_MultiplyIntegerRHS",
+			s:    `SELECT value * 2 FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_MultiplyNumberLHS",
+			s:    `SELECT 2.0 * value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_MultiplyIntegerLHS",
+			s:    `SELECT 2 * value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_MultiplyTwoVariables",
+			s:    `SELECT value * value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 400}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 100}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 361}},
+			},
+		},
+		{
+			name: "BinaryExpr_Integer_SubtractNumberRHS",
+			s:    `SELECT value - 2.0 FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_SubtractIntegerRHS",
+			s:    `SELECT value - 2 FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_SubtractNumberLHS",
+			s:    `SELECT 2.0 - value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: -17}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_SubtractIntegerLHS",
+			s:    `SELECT 2 - value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: -17}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_SubtractTwoVariables",
+			s:    `SELECT value - value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
+		{
+			name: "BinaryExpr_Integer_DivideNumberRHS",
+			s:    `SELECT value / 2.0 FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_DivideIntegerRHS",
+			s:    `SELECT value / 2 FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_DivideNumberLHS",
+			s:    `SELECT 38.0 / value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_DivideIntegerLHS",
+			s:    `SELECT 38 / value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_DivideTwoVariables",
+			s:    `SELECT value / value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 1}},
+			},
+		},
+		{
+			name: "BinaryExpr_Integer_BitwiseAndRHS",
+			s:    `SELECT value & 254 FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 10}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 18}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_BitwiseOrLHS",
+			s:    `SELECT 4 | value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 14}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 23}},
+			},
+			skip: true,
+		},
+		{
+			name: "BinaryExpr_Integer_BitwiseXorTwoVariables",
+			s:    `SELECT value ^ value FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{int64(20)}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{int64(10)}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{int64(19)}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
+		{
+			name: "BinaryExpr_Mixed_Add",
+			s:    `SELECT z + value FROM cpu`,
+			typ:  influxql.Float,
+			createFn: func(opt influxql.IteratorOptions) []influxql.Iterator {
+				values := []map[string]interface{}{
+					{"value": float64(20), "z": int64(10)},
+					{"value": float64(10), "z": int64(15)},
+					{"value": float64(19), "z": int64(5)},
+				}
+
+				points := make([]influxql.FloatPoint, 3)
+				for i, d := range []int64{0, 5, 9} {
+					auxFields := make([]interface{}, 2)
+					for j, ref := range opt.Aux {
+						auxFields[j] = values[i][ref.Val]
+					}
+					points[i] = influxql.FloatPoint{
+						Name: "cpu",
+						Time: d * Second,
+						Aux:  auxFields,
+					}
+				}
+				return []influxql.Iterator{&mock.FloatIterator{Points: points}}
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 30}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 25}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 24}},
+			},
+		},
+		{
+			name: "BinaryExpr_Mixed_Subtract",
+			s:    `SELECT z - value FROM cpu`,
+			typ:  influxql.Float,
+			createFn: func(opt influxql.IteratorOptions) []influxql.Iterator {
+				values := []map[string]interface{}{
+					{"value": float64(10), "z": int64(20)},
+					{"value": float64(15), "z": int64(10)},
+					{"value": float64(5), "z": int64(19)},
+				}
+
+				points := make([]influxql.FloatPoint, 3)
+				for i, d := range []int64{0, 5, 9} {
+					auxFields := make([]interface{}, 2)
+					for j, ref := range opt.Aux {
+						auxFields[j] = values[i][ref.Val]
+					}
+					points[i] = influxql.FloatPoint{
+						Name: "cpu",
+						Time: d * Second,
+						Aux:  auxFields,
+					}
+				}
+				return []influxql.Iterator{&mock.FloatIterator{Points: points}}
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 14}},
+			},
+		},
+		{
+			name: "BinaryExpr_Mixed_Multiply",
+			s:    `SELECT z * value FROM cpu`,
+			typ:  influxql.Float,
+			createFn: func(opt influxql.IteratorOptions) []influxql.Iterator {
+				values := []map[string]interface{}{
+					{"value": float64(20), "z": int64(10)},
+					{"value": float64(10), "z": int64(15)},
+					{"value": float64(19), "z": int64(5)},
+				}
+
+				points := make([]influxql.FloatPoint, 3)
+				for i, d := range []int64{0, 5, 9} {
+					auxFields := make([]interface{}, 2)
+					for j, ref := range opt.Aux {
+						auxFields[j] = values[i][ref.Val]
+					}
+					points[i] = influxql.FloatPoint{
+						Name: "cpu",
+						Time: d * Second,
+						Aux:  auxFields,
+					}
+				}
+				return []influxql.Iterator{&mock.FloatIterator{Points: points}}
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 200}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 150}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 95}},
+			},
+		},
+		{
+			name: "BinaryExpr_Mixed_Division",
+			s:    `SELECT z / value FROM cpu`,
+			typ:  influxql.Float,
+			createFn: func(opt influxql.IteratorOptions) []influxql.Iterator {
+				values := []map[string]interface{}{
+					{"value": float64(10), "z": int64(20)},
+					{"value": float64(15), "z": int64(10)},
+					{"value": float64(5), "z": int64(19)},
+				}
+
+				points := make([]influxql.FloatPoint, 3)
+				for i, d := range []int64{0, 5, 9} {
+					auxFields := make([]interface{}, 2)
+					for j, ref := range opt.Aux {
+						auxFields[j] = values[i][ref.Val]
+					}
+					points[i] = influxql.FloatPoint{
+						Name: "cpu",
+						Time: d * Second,
+						Aux:  auxFields,
+					}
+				}
+				return []influxql.Iterator{&mock.FloatIterator{Points: points}}
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(10) / float64(15)}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / float64(5)}},
+			},
+		},
+		{
+			name: "BinaryExpr_Boolean_BitwiseXorRHS",
+			s:    `SELECT one ^ true FROM cpu`,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{true}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{false}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{true}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.BooleanPoint{Name: "cpu", Time: 0 * Second, Value: false}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 5 * Second, Value: true}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 9 * Second, Value: false}},
+			},
+		},
+		{
+			name: "BinaryExpr_Boolean_BitwiseOrLHS",
+			s:    `SELECT true | two FROM cpu`,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Aux: []interface{}{true}},
+					{Name: "cpu", Time: 5 * Second, Aux: []interface{}{false}},
+					{Name: "cpu", Time: 9 * Second, Aux: []interface{}{true}},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.BooleanPoint{Name: "cpu", Time: 0 * Second, Value: true}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 5 * Second, Value: true}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 9 * Second, Value: true}},
+			},
+		},
+		{
+			name: "BinaryExpr_Boolean_BitwiseAndTwoVariables",
+			s:    `SELECT one & two FROM cpu`,
+			createFn: func(opt influxql.IteratorOptions) []influxql.Iterator {
+				values := []map[string]interface{}{
+					{"one": true, "two": false},
+					{"one": false, "two": false},
+					{"one": true, "two": true},
+				}
+
+				points := make([]influxql.FloatPoint, 3)
+				for i, d := range []int64{0, 5, 9} {
+					auxFields := make([]interface{}, 2)
+					for j, ref := range opt.Aux {
+						auxFields[j] = values[i][ref.Val]
+					}
+					points[i] = influxql.FloatPoint{
+						Name: "cpu",
+						Time: d * Second,
+						Aux:  auxFields,
+					}
+				}
+				return []influxql.Iterator{&mock.FloatIterator{Points: points}}
+			},
+			points: [][]influxql.Point{
+				{&influxql.BooleanPoint{Name: "cpu", Time: 0 * Second, Value: false}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 5 * Second, Value: false}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 9 * Second, Value: true}},
+			},
+		},
+		{
+			name: "BinaryExpr_NilValues_Add",
+			s:    `SELECT v1 + v2 FROM cpu`,
+			createFn: func(opt influxql.IteratorOptions) []influxql.Iterator {
+				values := []map[string]interface{}{
+					{"v1": float64(20), "v2": nil},
+					{"v1": float64(10), "v2": float64(15)},
+					{"v1": nil, "v2": float64(5)},
+				}
+
+				points := make([]influxql.FloatPoint, 3)
+				for i, d := range []int64{0, 5, 9} {
+					auxFields := make([]interface{}, 2)
+					for j, ref := range opt.Aux {
+						auxFields[j] = values[i][ref.Val]
+					}
+					points[i] = influxql.FloatPoint{
+						Name: "cpu",
+						Time: d * Second,
+						Aux:  auxFields,
+					}
+				}
+				return []influxql.Iterator{&mock.FloatIterator{Points: points}}
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 25}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Nil: true}},
+			},
+		},
+		{
+			name: "BinaryExpr_NilValues_Subtract",
+			s:    `SELECT v1 - v2 FROM cpu`,
+			typ:  influxql.Float,
+			createFn: func(opt influxql.IteratorOptions) []influxql.Iterator {
+				values := []map[string]interface{}{
+					{"v1": float64(20), "v2": nil},
+					{"v1": float64(10), "v2": float64(15)},
+					{"v1": nil, "v2": float64(5)},
+				}
+
+				points := make([]influxql.FloatPoint, 3)
+				for i, d := range []int64{0, 5, 9} {
+					auxFields := make([]interface{}, 2)
+					for j, ref := range opt.Aux {
+						auxFields[j] = values[i][ref.Val]
+					}
+					points[i] = influxql.FloatPoint{
+						Name: "cpu",
+						Time: d * Second,
+						Aux:  auxFields,
+					}
+				}
+				return []influxql.Iterator{&mock.FloatIterator{Points: points}}
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Nil: true}},
+			},
+		},
+		{
+			name: "BinaryExpr_NilValues_Multiply",
+			s:    `SELECT v1 * v2 FROM cpu`,
+			typ:  influxql.Float,
+			createFn: func(opt influxql.IteratorOptions) []influxql.Iterator {
+				values := []map[string]interface{}{
+					{"v1": float64(20), "v2": nil},
+					{"v1": float64(10), "v2": float64(15)},
+					{"v1": nil, "v2": float64(5)},
+				}
+
+				points := make([]influxql.FloatPoint, 3)
+				for i, d := range []int64{0, 5, 9} {
+					auxFields := make([]interface{}, 2)
+					for j, ref := range opt.Aux {
+						auxFields[j] = values[i][ref.Val]
+					}
+					points[i] = influxql.FloatPoint{
+						Name: "cpu",
+						Time: d * Second,
+						Aux:  auxFields,
+					}
+				}
+				return []influxql.Iterator{&mock.FloatIterator{Points: points}}
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 150}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Nil: true}},
+			},
+		},
+		{
+			name: "BinaryExpr_NilValues_Division",
+			s:    `SELECT v1 / v2 FROM cpu`,
+			typ:  influxql.Float,
+			createFn: func(opt influxql.IteratorOptions) []influxql.Iterator {
+				values := []map[string]interface{}{
+					{"v1": float64(20), "v2": nil},
+					{"v1": float64(10), "v2": float64(15)},
+					{"v1": nil, "v2": float64(5)},
+				}
+
+				points := make([]influxql.FloatPoint, 3)
+				for i, d := range []int64{0, 5, 9} {
+					auxFields := make([]interface{}, 2)
+					for j, ref := range opt.Aux {
+						auxFields[j] = values[i][ref.Val]
+					}
+					points[i] = influxql.FloatPoint{
+						Name: "cpu",
+						Time: d * Second,
+						Aux:  auxFields,
+					}
+				}
+				return []influxql.Iterator{&mock.FloatIterator{Points: points}}
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(10) / float64(15)}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Nil: true}},
+			},
+		},
+		{
+			name: "ParenExpr_Min",
+			s:    `SELECT (min(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 19, Aggregated: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
+			},
+		},
+		{
+			name: "ParenExpr_Distinct",
+			s:    `SELECT (distinct(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 1 * Second, Value: 19},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 11 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 19}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.skip {
@@ -1486,18 +3140,30 @@ func TestSelect(t *testing.T) {
 							"cpu": {
 								Fields: map[string]influxql.DataType{
 									"value": tt.typ,
+									"v1":    influxql.Float,
+									"v2":    influxql.Float,
+									"z":     influxql.Integer,
+									"one":   influxql.Boolean,
+									"two":   influxql.Boolean,
 								},
-								Dimensions: []string{"host"},
+								Dimensions: []string{"host", "region"},
 							},
 						},
 						CreateIteratorFn: func(name string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 							if name != "cpu" {
 								t.Fatalf("unexpected source: %s", err)
 							}
-							if diff := cmp.Diff(opt.Expr, influxql.MustParseExpr(tt.expr)); diff != "" {
-								t.Fatalf("unexpected expr:\n%s", diff)
+							if tt.expr != "" {
+								if diff := cmp.Diff(opt.Expr, influxql.MustParseExpr(tt.expr)); diff != "" {
+									t.Fatalf("unexpected expr:\n%s", diff)
+								}
 							}
-							return influxql.Iterators(tt.itrs).Merge(opt)
+
+							itrs := tt.itrs
+							if tt.createFn != nil {
+								itrs = tt.createFn(opt)
+							}
+							return influxql.Iterators(itrs).Merge(opt)
 						},
 					}
 				}
