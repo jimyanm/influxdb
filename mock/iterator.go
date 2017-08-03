@@ -152,6 +152,24 @@ func (itr *BooleanIterator) Next() (*influxql.BooleanPoint, error) {
 	return v, nil
 }
 
+type FloatPointGenerator struct {
+	i  int
+	N  int
+	Fn func(i int) *influxql.FloatPoint
+}
+
+func (g *FloatPointGenerator) Close() error                  { return nil }
+func (g *FloatPointGenerator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+
+func (g *FloatPointGenerator) Next() (*influxql.FloatPoint, error) {
+	if g.i == g.N {
+		return nil, nil
+	}
+	p := g.Fn(g.i)
+	g.i++
+	return p, nil
+}
+
 // ParseTags returns an instance of Tags for a comma-delimited list of key/values.
 func ParseTags(s string) influxql.Tags {
 	m := make(map[string]string)

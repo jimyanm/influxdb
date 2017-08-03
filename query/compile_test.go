@@ -1,8 +1,11 @@
 package query_test
 
 import (
+	"math/rand"
 	"testing"
 	"time"
+
+	"fmt"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/influxql"
@@ -3745,7 +3748,7 @@ func TestSelect(t *testing.T) {
 						},
 						CreateIteratorFn: func(name string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 							if name != "cpu" {
-								t.Fatalf("unexpected source: %s", err)
+								t.Fatalf("unexpected source: %s", name)
 							}
 							if tt.expr != "" {
 								if diff := cmp.Diff(opt.Expr, influxql.MustParseExpr(tt.expr)); diff != "" {
@@ -3804,3 +3807,155 @@ func TestSelect(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkSelect_Raw_1K(b *testing.B)   { benchmarkSelectRaw(b, 1000) }
+func BenchmarkSelect_Raw_100K(b *testing.B) { benchmarkSelectRaw(b, 1000000) }
+
+func benchmarkSelectRaw(b *testing.B, pointN int) {
+	linker := mock.NewLinker(func(stub *mock.LinkerStub) {
+		stub.ShardsByTimeRangeFn = func(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
+			return []meta.ShardInfo{{ID: 1}}, nil
+		}
+		stub.ShardGroupFn = func(ids []uint64) query.ShardGroup {
+			if diff := cmp.Diff(ids, []uint64{1}); diff != "" {
+				b.Fatalf("unexpected shard ids:\n%s", diff)
+			}
+			return &mock.ShardGroup{
+				Measurements: map[string]mock.ShardMeta{
+					"cpu": {
+						Fields: map[string]influxql.DataType{
+							"fval": influxql.Float,
+						},
+					},
+				},
+				CreateIteratorFn: func(name string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+					if name != "cpu" {
+						return nil, fmt.Errorf("unexpected source: %s", name)
+					}
+					return NewRawBenchmarkIterator(pointN, opt), nil
+				},
+			}
+		}
+	})
+	benchmarkSelect(b, `SELECT fval FROM cpu`, linker)
+}
+
+func benchmarkSelect(b *testing.B, s string, linker *query.Linker) {
+	mustParseTime := func(value string) time.Time {
+		ts, err := time.Parse(time.RFC3339, value)
+		if err != nil {
+			b.Fatalf("unable to parse time: %s", err)
+		}
+		return ts
+	}
+	now := mustParseTime("2000-01-01T00:00:00Z")
+
+	stmt, err := influxql.ParseStatement(s)
+	if err != nil {
+		b.Fatalf("unable to parse statement: %s", err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		opt := query.CompileOptions{Now: now}
+		c, err := query.Compile(stmt.(*influxql.SelectStatement), opt)
+		if err != nil {
+			b.Fatalf("unable to compile statement: %s", err)
+		}
+
+		fields, _, err := c.Select(linker)
+		if err != nil {
+			b.Fatalf("unable to link statement: %s", err)
+		}
+
+		plan := query.NewPlan()
+		for _, f := range fields {
+			plan.AddTarget(f)
+		}
+
+		for {
+			n := plan.FindWork()
+			if n == nil {
+				break
+			}
+			if err := n.Execute(); err != nil {
+				b.Fatalf("error while executing the plan: %s", err)
+			}
+			plan.NodeFinished(n)
+		}
+
+		itrs := make([]influxql.Iterator, len(fields))
+		for i, f := range fields {
+			itrs[i] = f.Iterator()
+		}
+		influxql.DrainIterators(itrs)
+	}
+}
+
+// NewRawBenchmarkIteratorCreator returns a new mock iterator creator with generated fields.
+func NewRawBenchmarkIterator(pointN int, opt influxql.IteratorOptions) influxql.Iterator {
+	if opt.Expr != nil {
+		panic("unexpected expression")
+	}
+
+	p := influxql.FloatPoint{
+		Name: "cpu",
+		Aux:  make([]interface{}, len(opt.Aux)),
+	}
+
+	for i := range opt.Aux {
+		switch opt.Aux[i].Val {
+		case "fval":
+			p.Aux[i] = float64(100)
+		default:
+			panic("unknown iterator expr: " + opt.Expr.String())
+		}
+	}
+
+	return &mock.FloatPointGenerator{N: pointN, Fn: func(i int) *influxql.FloatPoint {
+		p.Time = int64(i) * 10 * Second
+		return &p
+	}}
+}
+
+func benchmarkSelectTop(b *testing.B, seriesN, pointsPerSeries int) {
+	linker := mock.NewLinker(func(stub *mock.LinkerStub) {
+		stub.ShardsByTimeRangeFn = func(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
+			return []meta.ShardInfo{{ID: 1}}, nil
+		}
+		stub.ShardGroupFn = func(ids []uint64) query.ShardGroup {
+			if diff := cmp.Diff(ids, []uint64{1}); diff != "" {
+				b.Fatalf("unexpected shard ids:\n%s", diff)
+			}
+			return &mock.ShardGroup{
+				Measurements: map[string]mock.ShardMeta{
+					"cpu": {
+						Fields: map[string]influxql.DataType{
+							"sval": influxql.Float,
+						},
+					},
+				},
+				CreateIteratorFn: func(name string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+					if name != "cpu" {
+						return nil, fmt.Errorf("unexpected source: %s", name)
+					}
+
+					p := influxql.FloatPoint{
+						Name: "cpu",
+					}
+
+					return &mock.FloatPointGenerator{N: seriesN * pointsPerSeries, Fn: func(i int) *influxql.FloatPoint {
+						p.Value = float64(rand.Int63())
+						p.Time = int64(time.Duration(i) * (10 * time.Second))
+						return &p
+					}}, nil
+				},
+			}
+		}
+	})
+	benchmarkSelect(b, `SELECT top(sval, 10) FROM cpu`, linker)
+}
+
+func BenchmarkSelect_Top_1K(b *testing.B) { benchmarkSelectTop(b, 1000, 1000) }
