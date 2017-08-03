@@ -2889,6 +2889,7 @@ func TestSelect(t *testing.T) {
 				{&influxql.BooleanPoint{Name: "cpu", Time: 5 * Second, Value: true}},
 				{&influxql.BooleanPoint{Name: "cpu", Time: 9 * Second, Value: false}},
 			},
+			skip: true,
 		},
 		{
 			name: "BinaryExpr_Boolean_BitwiseOrLHS",
@@ -2905,6 +2906,7 @@ func TestSelect(t *testing.T) {
 				{&influxql.BooleanPoint{Name: "cpu", Time: 5 * Second, Value: true}},
 				{&influxql.BooleanPoint{Name: "cpu", Time: 9 * Second, Value: true}},
 			},
+			skip: true,
 		},
 		{
 			name: "BinaryExpr_Boolean_BitwiseAndTwoVariables",
@@ -3109,6 +3111,598 @@ func TestSelect(t *testing.T) {
 				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 10 * Second, Value: 2}},
 				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 10}},
 			},
+		},
+		{
+			name: "Derivative_Float",
+			s:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 2.25}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -4}},
+			},
+			skip: true,
+		},
+		{
+			name: "Derivative_Integer",
+			s:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 2.25}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -4}},
+			},
+			skip: true,
+		},
+		{
+			name: "Derivative_Desc_Float",
+			s:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z' ORDER BY desc`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.25}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2.5}},
+			},
+			skip: true,
+		},
+		{
+			name: "Derivative_Desc_Integer",
+			s:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z' ORDER BY desc`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.25}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2.5}},
+			},
+			skip: true,
+		},
+		{
+			name: "Derivative_Duplicate_Float",
+			s:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+			},
+			skip: true,
+		},
+		{
+			name: "Derivative_Duplicate_Integer",
+			s:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+			},
+			skip: true,
+		},
+		{
+			name: "Difference_Float",
+			s:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 9}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -16}},
+			},
+			skip: true,
+		},
+		{
+			name: "Difference_Integer",
+			s:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 9}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 12 * Second, Value: -16}},
+			},
+			skip: true,
+		},
+		{
+			name: "Difference_Duplicate_Float",
+			s:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
+			},
+			skip: true,
+		},
+		{
+			name: "Difference_Duplicate_Integer",
+			s:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
+			},
+			skip: true,
+		},
+		{
+			name: "Non_Negative_Difference_Float",
+			s:    `SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 29},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 16 * Second, Value: 39},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 19}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 16 * Second, Value: 36}},
+			},
+			skip: true,
+		},
+		{
+			name: "Non_Negative_Difference_Integer",
+			s:    `SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 21},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 11}},
+			},
+			skip: true,
+		},
+		{
+			name: "Non_Negative_Difference_Duplicate_Float",
+			s:    `SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+					{Name: "cpu", Time: 8 * Second, Value: 30},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 10},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 16 * Second, Value: 40},
+					{Name: "cpu", Time: 16 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 16 * Second, Value: 30}},
+			},
+			skip: true,
+		},
+		{
+			name: "Non_Negative_Difference_Duplicate_Integer",
+			s:    `SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+					{Name: "cpu", Time: 8 * Second, Value: 30},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 10},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 16 * Second, Value: 40},
+					{Name: "cpu", Time: 16 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 16 * Second, Value: 30}},
+			},
+			skip: true,
+		},
+		{
+			name: "Elapsed_Float",
+			s:    `SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 11 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
+			},
+			skip: true,
+		},
+		{
+			name: "Elapsed_Integer",
+			s:    `SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 11 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
+			},
+			skip: true,
+		},
+		{
+			name: "Elapsed_String",
+			s:    `SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.String,
+			itrs: []influxql.Iterator{
+				&mock.StringIterator{Points: []influxql.StringPoint{
+					{Name: "cpu", Time: 0 * Second, Value: "a"},
+					{Name: "cpu", Time: 4 * Second, Value: "b"},
+					{Name: "cpu", Time: 8 * Second, Value: "c"},
+					{Name: "cpu", Time: 11 * Second, Value: "d"},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
+			},
+			skip: true,
+		},
+		{
+			name: "Elapsed_Boolean",
+			s:    `SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Boolean,
+			itrs: []influxql.Iterator{
+				&mock.BooleanIterator{Points: []influxql.BooleanPoint{
+					{Name: "cpu", Time: 0 * Second, Value: true},
+					{Name: "cpu", Time: 4 * Second, Value: false},
+					{Name: "cpu", Time: 8 * Second, Value: false},
+					{Name: "cpu", Time: 11 * Second, Value: true},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
+			},
+			skip: true,
+		},
+		{
+			name: "Integral_Float",
+			s:    `SELECT integral(value) FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 10 * Second, Value: 20},
+					{Name: "cpu", Time: 15 * Second, Value: 10},
+					{Name: "cpu", Time: 20 * Second, Value: 0},
+					{Name: "cpu", Time: 30 * Second, Value: -10},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 50}},
+			},
+			skip: true,
+		},
+		{
+			name: "Integral_Float_GroupByTime",
+			s:    `SELECT integral(value) FROM cpu WHERE time > 0s AND time < 60s GROUP BY time(20s)`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 10 * Second, Value: 20},
+					{Name: "cpu", Time: 15 * Second, Value: 10},
+					{Name: "cpu", Time: 20 * Second, Value: 0},
+					{Name: "cpu", Time: 30 * Second, Value: -10},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 100}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 20 * Second, Value: -50}},
+			},
+			skip: true,
+		},
+		{
+			name: "Integral_Float_InterpolateGroupByTime",
+			s:    `SELECT integral(value) FROM cpu WHERE time > 0s AND time < 60s GROUP BY time(20s)`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 10 * Second, Value: 20},
+					{Name: "cpu", Time: 15 * Second, Value: 10},
+					{Name: "cpu", Time: 25 * Second, Value: 0},
+					{Name: "cpu", Time: 30 * Second, Value: -10},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 112.5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 20 * Second, Value: -12.5}},
+			},
+			skip: true,
+		},
+		{
+			name: "Integral_Integer",
+			s:    `SELECT integral(value) FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 5 * Second, Value: 10},
+					{Name: "cpu", Time: 10 * Second, Value: 0},
+					{Name: "cpu", Time: 20 * Second, Value: -10},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 50}},
+			},
+			skip: true,
+		},
+		{
+			name: "Integral_Duplicate_Float",
+			s:    `SELECT integral(value) FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 5 * Second, Value: 10},
+					{Name: "cpu", Time: 5 * Second, Value: 30},
+					{Name: "cpu", Time: 10 * Second, Value: 40},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 250}},
+			},
+			skip: true,
+		},
+		{
+			name: "Integral_Duplicate_Integer",
+			s:    `SELECT integral(value, 2s) FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 5 * Second, Value: 10},
+					{Name: "cpu", Time: 5 * Second, Value: 30},
+					{Name: "cpu", Time: 10 * Second, Value: 40},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 125}},
+			},
+			skip: true,
+		},
+		{
+			name: "MovingAverage_Float",
+			s:    `SELECT moving_average(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 15, Aggregated: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 14.5, Aggregated: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 12 * Second, Value: 11, Aggregated: 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "MovingAverage_Integer",
+			s:    `SELECT moving_average(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 15, Aggregated: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 14.5, Aggregated: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 12 * Second, Value: 11, Aggregated: 2}},
+			},
+			skip: true,
+		},
+		{
+			name: "CumulativeSum_Float",
+			s:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 30}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 49}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 12 * Second, Value: 52}},
+			},
+			skip: true,
+		},
+		{
+			name: "CumulativeSum_Integer",
+			s:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 30}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 49}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 12 * Second, Value: 52}},
+			},
+			skip: true,
+		},
+		{
+			name: "CumulativeSum_Duplicate_Float",
+			s:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 39}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 49}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 52}},
+			},
+			skip: true,
+		},
+		{
+			name: "CumulativeSum_Duplicate_Integer",
+			s:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []influxql.Iterator{
+				&mock.IntegerIterator{Points: []influxql.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 39}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 49}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 52}},
+			},
+			skip: true,
+		},
+		{
+			name: "HoltWinters_GroupBy_Agg",
+			s:    `SELECT holt_winters(mean(value), 2, 2) FROM cpu WHERE time >= '1970-01-01T00:00:10Z' AND time < '1970-01-01T00:00:20Z' GROUP BY time(2s)`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Time: 10 * Second, Value: 4},
+					{Name: "cpu", Time: 11 * Second, Value: 6},
+
+					{Name: "cpu", Time: 12 * Second, Value: 9},
+					{Name: "cpu", Time: 13 * Second, Value: 11},
+
+					{Name: "cpu", Time: 14 * Second, Value: 5},
+					{Name: "cpu", Time: 15 * Second, Value: 7},
+
+					{Name: "cpu", Time: 16 * Second, Value: 10},
+					{Name: "cpu", Time: 17 * Second, Value: 12},
+
+					{Name: "cpu", Time: 18 * Second, Value: 6},
+					{Name: "cpu", Time: 19 * Second, Value: 8},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 20 * Second, Value: 11.960623419918432}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 22 * Second, Value: 7.953140268154609}},
+			},
+			skip: true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
