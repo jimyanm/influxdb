@@ -142,7 +142,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement
 		{
-			s: fmt.Sprintf(`SELECT mean(field1), sum(field2) ,count(field3) AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' and time > '%s' GROUP BY time(10h) ORDER BY DESC LIMIT 20 OFFSET 10;`, now.UTC().Format(time.RFC3339Nano)),
+			s: fmt.Sprintf(`SELECT mean(field1), sum(field2), count(field3) AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' and time > '%s' GROUP BY time(10h) ORDER BY DESC LIMIT 20 OFFSET 10;`, now.UTC().Format(time.RFC3339Nano)),
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: false,
 				Fields: []*influxql.Field{
@@ -2555,7 +2555,6 @@ func TestParser_ParseStatement(t *testing.T) {
 		// Errors
 		{s: ``, err: `found EOF, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL, EXPLAIN at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
-		{s: `SELECT time FROM myseries`, err: `at least 1 non-time field must be queried`},
 		{s: `blah blah`, err: `found blah, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL, EXPLAIN at line 1, char 1`},
 		{s: `SELECT field1 X`, err: `found X, expected FROM at line 1, char 15`},
 		{s: `SELECT field1 FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 38`},
@@ -2756,16 +2755,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		}
 		stmt, err := p.ParseStatement()
 
-		// We are memoizing a field so for testing we need to...
-		if s, ok := tt.stmt.(*influxql.SelectStatement); ok {
-			s.GroupByInterval()
-			for _, source := range s.Sources {
-				switch source := source.(type) {
-				case *influxql.SubQuery:
-					source.Statement.GroupByInterval()
-				}
-			}
-		} else if st, ok := stmt.(*influxql.CreateContinuousQueryStatement); ok { // if it's a CQ, there is a non-exported field that gets memoized during parsing that needs to be set
+		// if it's a CQ, there is a non-exported field that gets memoized during parsing that needs to be set
+		if st, ok := stmt.(*influxql.CreateContinuousQueryStatement); ok {
 			if st != nil && st.Source != nil {
 				tt.stmt.(*influxql.CreateContinuousQueryStatement).Source.GroupByInterval()
 			}
